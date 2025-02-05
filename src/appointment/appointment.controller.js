@@ -1,4 +1,5 @@
 import Pet from "../pet/pet.model.js";
+import User from "../user/user.model.js"
 import Appointment from "../appointment/appointment.model.js";
 import { parse } from "date-fns";
 
@@ -54,5 +55,69 @@ export const saveAppointment = async (req, res) => {
       msg: "Error al crear la cita", 
       error 
     });
+  }
+};
+
+export const getAppointmentById = async (req, res) => {
+  const { limite = 10, desde = 0 } = req.query;
+    const query = { status: true };
+
+    try {
+        const appointments = await Appointment.find(query)
+            .skip(Number(desde))
+            .limit(Number(limite));
+
+        const appointmentsWithOwnerNames = await Promise.all(appointments.map(async (appointment) => {
+            const owner = await User.findById(appointment.user);
+            return {
+                ...appointment.toObject(),
+                user: owner ? owner.nombre : "Usuario no encontrado",
+            };
+        }));
+
+        const total = await Appointment.countDocuments(query);
+
+        res.status(200).json({
+            success: true,
+            total,
+            appointments: appointmentsWithOwnerNames,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error al obtener las citas',
+            error
+        });
+    }
+}
+
+export const searchAppoiment = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+      const appointment = await Appointment.findById(id);
+
+      if (!appointment) {
+          return res.status(404).json({ 
+              success: false, 
+              message: 'Cita no encontrada' 
+          });
+      }
+
+      const owner = await User.findById(appointment.user);
+
+      res.status(200).json({
+          success: true,
+          appointment: {
+              ...appointment.toObject(),
+              user: owner ? owner.nombre : "Usuario no encontrado",
+          }
+      });
+  } catch (error) {
+      res.status(500).json({
+          success: false,
+          message: 'Error al buscar las citas',
+          error
+      });
   }
 };
