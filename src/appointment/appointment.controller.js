@@ -1,5 +1,4 @@
 import Pet from "../pet/pet.model.js";
-import User from "../user/user.model.js"
 import Appointment from "../appointment/appointment.model.js";
 import { parse } from "date-fns";
 
@@ -58,66 +57,70 @@ export const saveAppointment = async (req, res) => {
   }
 };
 
-export const getAppointmentById = async (req, res) => {
-  const { limite = 10, desde = 0 } = req.query;
-    const query = { status: true };
+export const getAppointment = async (req, res) => {
+  try{
+    const query = { status: CREATED }
+  
+      const { limite = 5, desde = 0 } = req.query
 
-    try {
-        const appointments = await Appointment.find(query)
-            .skip(Number(desde))
-            .limit(Number(limite));
 
-        const appointmentsWithOwnerNames = await Promise.all(appointments.map(async (appointment) => {
-            const owner = await User.findById(appointment.user);
-            return {
-                ...appointment.toObject(),
-                user: owner ? owner.nombre : "Usuario no encontrado",
-            };
-        }));
+      const [total, appointment ] = await Promise.all([
+          Appointment.countDocuments(query),
+          Appointment.find(query)
+              .skip(Number(desde))
+              .limit(Number(limite))
+      ])
 
-        const total = await Appointment.countDocuments(query);
+      return res.status(200).json({
+          success: true,
+          total,
+          appointment
+      })
+  }catch(err){
+      return res.status(500).json({
+          success: false,
+          message: "Error al obtener las citas ",
+          error: err.message
+      })
+  }
+};
 
-        res.status(200).json({
-            success: true,
-            total,
-            appointments: appointmentsWithOwnerNames,
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener las citas',
-            error
-        });
-    }
-}
-
-export const searchAppoiment = async (req, res) => {
-  const { id } = req.params;
-
+export const updateAppointment = async (req, res) => {
   try {
-      const appointment = await Appointment.findById(id);
-
-      if (!appointment) {
-          return res.status(404).json({ 
-              success: false, 
-              message: 'Cita no encontrada' 
-          });
-      }
-
-      const owner = await User.findById(appointment.user);
-
+      const { uid } = req.params;
+      const  data  = req.body;
+ 
+      const appointment = await Appointment.findByIdAndUpdate(uid, data, { new: true });
+ 
       res.status(200).json({
           success: true,
-          appointment: {
-              ...appointment.toObject(),
-              user: owner ? owner.nombre : "Usuario no encontrado",
-          }
+          msg: 'Cita Actualizada',
+          appointment,
       });
-  } catch (error) {
+  } catch (err) {
       res.status(500).json({
           success: false,
-          message: 'Error al buscar las citas',
-          error
+          msg: 'Error al actualizar la cita',
+          error: err.message
       });
+  }
+};
+
+export const cancelAppointment = async (req, res) => {
+  try{
+      const { uid } = req.params
+
+      await Appointment.findByIdAndUpdate(uid, {status: "CANCELLED"}, {new: true})
+
+      return res.status(200).json({
+          success: true,
+          message: "Cita cancelada",
+      })
+  }catch(err){
+      return res.status(500).json({
+          success: false,
+          message: "Error al cancelar la cita",
+          error: err.message
+      })
   }
 };
